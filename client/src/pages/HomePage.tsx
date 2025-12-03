@@ -34,8 +34,10 @@ function HomePage() {
         discordAvatar: null,
       });
 
-      // Open Spotify OAuth in popup
-      window.open(response.data.authUrl, '_blank', 'width=500,height=700');
+      // Open Spotify OAuth using Discord SDK (required for Activities)
+      await (sdk?.commands as any)?.openExternalLink({
+        url: response.data.authUrl,
+      });
 
       // Poll for connection status
       const checkInterval = setInterval(async () => {
