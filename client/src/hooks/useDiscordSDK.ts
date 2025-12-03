@@ -90,8 +90,8 @@ export function useDiscordSDK() {
         clearTimeout(timeout);
 
         // For Discord Activities, use the instanceId as the user ID
-        const instanceId = discordSdk.instance.instanceId;
-        const userId = instanceId ? `user-${instanceId.split('-').pop()?.slice(-8) || Date.now()}` : `user-${Date.now()}`;
+        const instanceId = (discordSdk as any).instanceId;
+        const userId = instanceId ? `user-${String(instanceId).split('-').pop()?.slice(-8) || Date.now()}` : `user-${Date.now()}`;
         
         setAuth({
           id: userId,
