@@ -164,7 +164,7 @@ router.get('/spotify/callback', async (req, res) => {
 });
 
 /**
- * Check Spotify connection status
+ * Check Spotify connection status (with token validation)
  */
 router.get('/spotify/status/:discordId', async (req, res) => {
   try {
@@ -172,13 +172,56 @@ router.get('/spotify/status/:discordId', async (req, res) => {
 
     const user = await User.findOne({ discordId });
 
-    if (!user) {
-      return res.json({ connected: false });
+    if (!user || !user.spotifyConnected) {
+      return res.json({ connected: false, hasValidToken: false });
     }
 
+    // Check if we have tokens
+    if (!user.spotifyAccessToken || !user.spotifyRefreshToken) {
+      return res.json({ connected: false, hasValidToken: false });
+    }
+
+    // Check if token is expired
+    const now = new Date();
+    const expiresAt = user.spotifyExpiresAt || new Date(0);
+    const isExpired = expiresAt <= now;
+
+    // If expired but we have refresh token, try to refresh
+    if (isExpired && user.spotifyRefreshToken) {
+      try {
+        const { accessToken, expiresIn } = await spotifyService.refreshAccessToken(user.spotifyRefreshToken);
+        
+        // Update user with new token
+        await User.findOneAndUpdate(
+          { discordId },
+          {
+            spotifyAccessToken: accessToken,
+            spotifyExpiresAt: new Date(now.getTime() + expiresIn * 1000),
+          }
+        );
+
+        return res.json({ connected: true, hasValidToken: true, refreshed: true });
+      } catch (refreshError: any) {
+        console.error('Token refresh failed:', refreshError);
+        // Token refresh failed, user needs to reconnect
+        await User.findOneAndUpdate(
+          { discordId },
+          {
+            spotifyConnected: false,
+            spotifyAccessToken: undefined,
+            spotifyRefreshToken: undefined,
+            spotifyExpiresAt: undefined,
+          }
+        );
+        return res.json({ connected: false, hasValidToken: false, needsReconnect: true });
+      }
+    }
+
+    // Token is valid
     return res.json({
-      connected: user.spotifyConnected,
-      hasValidToken: user.spotifyAccessToken && user.spotifyExpiresAt && user.spotifyExpiresAt > new Date(),
+      connected: true,
+      hasValidToken: true,
+      expiresAt: expiresAt.toISOString(),
     });
   } catch (error: any) {
     console.error('Spotify status error:', error);

@@ -21,6 +21,7 @@ function HomePage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isCheckingSpotify, setIsCheckingSpotify] = useState(true);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const [isClosingRoom, setIsClosingRoom] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,54 @@ function HomePage() {
   const setSpotifyConnected = useGameStore((state) => state.setSpotifyConnected);
 
   const { auth, sdk } = useDiscordSDK();
+
+  // Check Spotify connection status on load and handle OAuth callback
+  useEffect(() => {
+    if (!auth?.id) {
+      setIsCheckingSpotify(false);
+      return;
+    }
+
+    const checkSpotifyStatus = async () => {
+      try {
+        setIsCheckingSpotify(true);
+        const response = await axios.get(`/api/auth/spotify/status/${auth.id}`);
+        const isConnected = response.data.connected && response.data.hasValidToken;
+        setSpotifyConnected(isConnected);
+        
+        // If token was refreshed, show a brief message
+        if (response.data.refreshed) {
+          console.log('✅ Spotify token refreshed automatically');
+        }
+      } catch (err) {
+        console.error('Failed to check Spotify status:', err);
+        setSpotifyConnected(false);
+      } finally {
+        setIsCheckingSpotify(false);
+      }
+    };
+
+    // Check URL params for OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const spotifyParam = urlParams.get('spotify');
+    const errorParam = urlParams.get('error');
+
+    if (spotifyParam === 'connected') {
+      // Just connected, check status
+      checkSpotifyStatus();
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (errorParam === 'auth_failed') {
+      setError('Spotify authentication failed. Please try again.');
+      setSpotifyConnected(false);
+      setIsCheckingSpotify(false);
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else {
+      // Regular status check
+      checkSpotifyStatus();
+    }
+  }, [auth?.id, setSpotifyConnected]);
 
   // Fetch active rooms on load
   useEffect(() => {
@@ -150,16 +199,28 @@ function HomePage() {
       });
 
       // Poll for connection status
+      let pollCount = 0;
+      const maxPolls = 60; // 2 minutes max (60 * 2 seconds)
+      
       const checkInterval = setInterval(async () => {
-        const statusResponse = await axios.get(`/api/auth/spotify/status/${auth.id}`);
-        if (statusResponse.data.connected) {
-          setSpotifyConnected(true);
+        pollCount++;
+        try {
+          const statusResponse = await axios.get(`/api/auth/spotify/status/${auth.id}`);
+          if (statusResponse.data.connected && statusResponse.data.hasValidToken) {
+            setSpotifyConnected(true);
+            clearInterval(checkInterval);
+            setError(null);
+          }
+        } catch (err) {
+          console.error('Status check error:', err);
+        }
+        
+        // Stop polling after max attempts
+        if (pollCount >= maxPolls) {
           clearInterval(checkInterval);
+          setError('Connection timeout. Please check if you completed the authorization.');
         }
       }, 2000);
-
-      // Clear interval after 2 minutes
-      setTimeout(() => clearInterval(checkInterval), 120000);
     } catch (err: any) {
       console.error('Spotify connection error:', err);
       setError('Failed to connect Spotify');
@@ -357,7 +418,11 @@ function HomePage() {
         )}
 
         <div className="spotify-section">
-          {spotifyConnected ? (
+          {isCheckingSpotify ? (
+            <div className="checking">
+              <span>Checking Spotify connection...</span>
+            </div>
+          ) : spotifyConnected ? (
             <div className="connected">
               <span className="check-icon">✓</span>
               <span>Spotify Connected</span>

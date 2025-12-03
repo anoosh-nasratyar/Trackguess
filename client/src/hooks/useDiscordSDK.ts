@@ -93,13 +93,22 @@ export function useDiscordSDK() {
         const instanceId = (discordSdk as any).instanceId;
         const userId = instanceId ? `user-${String(instanceId).split('-').pop()?.slice(-8) || Date.now()}` : `user-${Date.now()}`;
         
+        // Try to get stored user ID from localStorage for consistency
+        const storedUserId = localStorage.getItem('discord_user_id');
+        const finalUserId = storedUserId || userId;
+        
+        // Store user ID for persistence
+        if (!storedUserId) {
+          localStorage.setItem('discord_user_id', finalUserId);
+        }
+        
         setAuth({
-          id: userId,
+          id: finalUserId,
           username: 'Discord User',
           code: authCode,
         });
         
-        console.log('✅ Using temporary user ID:', userId);
+        console.log('✅ Using user ID:', finalUserId);
         setIsReady(true);
       } catch (err: any) {
         console.error('❌ Discord SDK initialization error:', err);
