@@ -1,0 +1,101 @@
+.home-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.home-card {
+  max-width: 500px;
+  width: 100%;
+}
+
+.home-card h1 {
+  font-size: 48px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  text-align: center;
+  opacity: 0.9;
+  margin-bottom: 32px;
+  font-size: 18px;
+}
+
+.spotify-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.connected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(29, 185, 84, 0.2);
+  border: 1px solid rgba(29, 185, 84, 0.5);
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-weight: 600;
+}
+
+.check-icon {
+  font-size: 24px;
+}
+
+.create-room-section {
+  margin-top: 32px;
+}
+
+.create-room-section h2 {
+  text-align: center;
+  margin-bottom: 24px;
+  font-size: 24px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.form-group select,
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 16px;
+}
+
+.form-group select:focus,
+.form-group input:focus {
+  border-color: rgba(29, 185, 84, 0.5);
+  outline: none;
+}
+
+.form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.create-btn {
+  width: 100%;
+  margin-top: 24px;
+  padding: 16px;
+  font-size: 18px;
+}
+
+.create-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
