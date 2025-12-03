@@ -10,8 +10,12 @@ import authRoutes from './routes/auth.routes';
 import roomRoutes from './routes/room.routes';
 import { setupSocketHandlers } from './sockets/socket.handlers';
 
-// Load .env from server directory (works with tsx watch from project root)
-const envPath = path.join(process.cwd(), 'server', '.env');
+// Load .env from server directory
+// Check if we're already in the server directory or at project root
+const isInServerDir = process.cwd().endsWith('server');
+const envPath = isInServerDir 
+  ? path.join(process.cwd(), '.env')
+  : path.join(process.cwd(), 'server', '.env');
 console.log('📁 Looking for .env at:', envPath);
 dotenv.config({ path: envPath });
 
