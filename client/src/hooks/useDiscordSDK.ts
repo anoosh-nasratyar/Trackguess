@@ -69,27 +69,34 @@ export function useDiscordSDK() {
           guildId: (discordSdk as any).guildId,
         });
 
-        // Authorize to get OAuth code (need rpc.activities.read for getActivityInstanceConnectedParticipants)
-        const authResult = await discordSdk.commands.authorize({
-          client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
-          response_type: 'code',
-          state: '',
-          prompt: 'none',
-          scope: ['identify', 'guilds', 'rpc.activities.read'],
-        });
+        // Try to authorize (RPC commands work without OAuth in Activities)
+        // If authorization fails, we can still use the Activity
+        let authCode = null;
+        try {
+          const authResult = await discordSdk.commands.authorize({
+            client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
+            response_type: 'code',
+            state: '',
+            prompt: 'none',
+            scope: ['identify', 'guilds'], // rpc.activities.read is not a valid OAuth scope
+          });
+          authCode = authResult.code;
+          console.log('✅ Discord authorization complete');
+        } catch (authErr: any) {
+          console.warn('⚠️ Discord authorization failed (this is OK for Activities):', authErr.message);
+          // Activities can work without OAuth - RPC commands are available by default
+        }
 
         clearTimeout(timeout);
-        console.log('✅ Discord authorization complete');
 
-        // For Discord Activities, use the instanceId as the user ID for now
-        // This is a simplified approach that works for testing
-        const instanceId = (discordSdk as any).instanceId;
-        const userId = instanceId ? `user-${instanceId.slice(-8)}` : `user-${Date.now()}`;
+        // For Discord Activities, use the instanceId as the user ID
+        const instanceId = discordSdk.instance.instanceId;
+        const userId = instanceId ? `user-${instanceId.split('-').pop()?.slice(-8) || Date.now()}` : `user-${Date.now()}`;
         
         setAuth({
           id: userId,
           username: 'Discord User',
-          code: authResult.code,
+          code: authCode,
         });
         
         console.log('✅ Using temporary user ID:', userId);

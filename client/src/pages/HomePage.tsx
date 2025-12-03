@@ -84,16 +84,13 @@ function HomePage() {
     setError(null);
 
     try {
-      // Try to get channel/guild info from SDK
+      // Get channel/guild info from SDK instance (available without OAuth)
       let channelId = null;
       let guildId = null;
       
-      try {
-        const instanceInfo = await (sdk?.commands as any)?.getInstanceConnectedParticipants();
-        channelId = instanceInfo?.channelId || null;
-        guildId = instanceInfo?.guildId || null;
-      } catch (e) {
-        console.warn('Could not get instance info:', e);
+      if (sdk?.instance) {
+        channelId = sdk.instance.channelId || null;
+        guildId = sdk.instance.guildId || null;
       }
 
       const response = await axios.post('/api/rooms/create', {
