@@ -4,12 +4,14 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 import { connectDatabase } from './config/database';
 import authRoutes from './routes/auth.routes';
 import roomRoutes from './routes/room.routes';
 import { setupSocketHandlers } from './sockets/socket.handlers';
 
-dotenv.config({ path: '../.env' });
+// Load .env from server directory
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 const httpServer = createServer(app);
