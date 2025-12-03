@@ -63,9 +63,14 @@ export function useDiscordSDK() {
 
         await discordSdk.ready();
         console.log('✅ Discord SDK ready');
+        console.log('SDK Context:', {
+          instanceId: (discordSdk as any).instanceId,
+          channelId: (discordSdk as any).channelId,
+          guildId: (discordSdk as any).guildId,
+        });
 
-        // Authenticate with Discord
-        const { code } = await discordSdk.commands.authorize({
+        // Authorize to get OAuth code (don't use prompt: 'none' in Activity)
+        const authResult = await discordSdk.commands.authorize({
           client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
           response_type: 'code',
           state: '',
@@ -74,24 +79,20 @@ export function useDiscordSDK() {
         });
 
         clearTimeout(timeout);
-        console.log('✅ Discord SDK authenticated with code:', code);
+        console.log('✅ Discord authorization complete');
 
-        // Authenticate to get user data
-        const authResponse = await discordSdk.commands.authenticate({
-          access_token: code,
-        });
-
-        console.log('✅ Got user data:', authResponse.user);
+        // For Discord Activities, use the instanceId as the user ID for now
+        // This is a simplified approach that works for testing
+        const instanceId = (discordSdk as any).instanceId;
+        const userId = instanceId ? `user-${instanceId.slice(-8)}` : `user-${Date.now()}`;
         
-        // Set auth with real user data
         setAuth({
-          code,
-          id: authResponse.user.id,
-          username: authResponse.user.username,
-          avatar: authResponse.user.avatar,
-          discriminator: authResponse.user.discriminator,
+          id: userId,
+          username: 'Discord User',
+          code: authResult.code,
         });
         
+        console.log('✅ Using temporary user ID:', userId);
         setIsReady(true);
       } catch (err: any) {
         console.error('❌ Discord SDK initialization error:', err);
