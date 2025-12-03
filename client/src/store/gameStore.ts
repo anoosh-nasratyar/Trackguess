@@ -21,6 +21,7 @@ export interface CurrentSong {
   trackId: string;
   albumArt: string;
   duration: number;
+  previewUrl?: string;
   startTime: number;
   title?: string; // Only revealed at end
   artist?: string; // Only revealed at end

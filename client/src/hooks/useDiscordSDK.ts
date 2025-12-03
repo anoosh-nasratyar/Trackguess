@@ -44,7 +44,6 @@ export function useDiscordSDK() {
   const [error, setError] = useState<string | null>(null);
   const [auth, setAuth] = useState<any>(null);
   const setupRan = useRef(false); // Prevent double initialization in StrictMode
-  const authAttempted = useRef(false); // Prevent double auth attempts
 
   useEffect(() => {
     // Prevent double initialization in React StrictMode
@@ -71,25 +70,6 @@ export function useDiscordSDK() {
         });
 
         // For Discord Activities, we don't need OAuth - RPC commands work by default
-        // Only try to authorize if we haven't attempted it before and user explicitly needs it
-        // Skip OAuth for Activities to avoid unnecessary prompts
-        let authCode = null;
-        
-        // Check if we have a stored auth state
-        const storedAuth = localStorage.getItem('discord_auth_state');
-        if (storedAuth && !authAttempted.current) {
-          try {
-            const authData = JSON.parse(storedAuth);
-            // Check if auth is still valid (not expired)
-            if (authData.expiresAt && new Date(authData.expiresAt) > new Date()) {
-              authCode = authData.code;
-              console.log('✅ Using stored Discord auth');
-            }
-          } catch (e) {
-            // Invalid stored auth, ignore
-          }
-        }
-        
         // Don't call authorize for Activities - it's not needed and causes prompts
         // RPC commands work without OAuth in Discord Activities
         console.log('✅ Discord SDK ready (OAuth not required for Activities)');
@@ -109,10 +89,12 @@ export function useDiscordSDK() {
           localStorage.setItem('discord_user_id', finalUserId);
         }
         
+        // Try to get username from stored data or use a default
+        const storedUsername = localStorage.getItem('discord_username') || 'Discord User';
+        
         setAuth({
           id: finalUserId,
-          username: 'Discord User',
-          code: authCode,
+          username: storedUsername,
         });
         
         console.log('✅ Using user ID:', finalUserId);

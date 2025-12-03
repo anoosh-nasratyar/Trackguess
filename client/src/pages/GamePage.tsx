@@ -3,11 +3,13 @@ import { useGameStore } from '../store/gameStore';
 import { getSocket } from '../hooks/useSocketIO';
 import { useDiscordSDK } from '../hooks/useDiscordSDK';
 import { useSpotify } from '../hooks/useSpotify';
+import axios from 'axios';
 import './GamePage.css';
 
 function GamePage() {
   const [guess, setGuess] = useState('');
   const [timeLeft, setTimeLeft] = useState(0);
+  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
   const roomId = useGameStore((state) => state.roomId);
@@ -23,10 +25,62 @@ function GamePage() {
 
   const socket = getSocket();
   const { auth } = useDiscordSDK();
+  const setCurrentRound = useGameStore((state) => state.setCurrentRound);
+  const setCurrentSong = useGameStore((state) => state.setCurrentSong);
 
   // Initialize Spotify player (if connected)
   const spotifyAccessToken = null; // TODO: Get from auth
   useSpotify(spotifyAccessToken);
+
+  // Fetch game state on mount (fallback for Socket.IO)
+  useEffect(() => {
+    if (!roomId) return;
+
+    const fetchGameState = async () => {
+      try {
+        const response = await axios.get(`/api/rooms/${roomId}`);
+        if (response.data.room.status === 'PLAYING') {
+          if (response.data.room.currentRound) {
+            setCurrentRound(response.data.room.currentRound);
+          }
+          if (response.data.songData) {
+            setCurrentSong(response.data.songData);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch game state:', err);
+      }
+    };
+
+    fetchGameState();
+    
+    // Poll for updates every 2 seconds
+    const pollInterval = setInterval(fetchGameState, 2000);
+    return () => clearInterval(pollInterval);
+  }, [roomId, setCurrentRound, setCurrentSong]);
+
+  // Audio playback using preview URL
+  useEffect(() => {
+    if (!currentSong?.previewUrl) return;
+
+    // Create audio element
+    const audio = new Audio(currentSong.previewUrl);
+    audio.loop = true;
+    audio.volume = 0.5;
+    
+    // Try to play (may fail due to browser autoplay policy)
+    audio.play().catch((err) => {
+      console.warn('Audio autoplay failed (user interaction required):', err);
+    });
+
+    setAudioRef(audio);
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      setAudioRef(null);
+    };
+  }, [currentSong?.previewUrl]);
 
   // Timer
   useEffect(() => {
@@ -93,7 +147,7 @@ function GamePage() {
     <div className="container game-page">
       <div className="game-header">
         <div className="round-info">
-          Round {currentRound} / {settings?.totalRounds}
+          Round {currentRound || 1} / {settings?.totalRounds}
         </div>
         <div className="timer-container">
           <div className="timer-progress" style={{ width: `${progressPercentage}%` }} />
@@ -115,9 +169,26 @@ function GamePage() {
             <div className="album-art-placeholder">🎵</div>
           )}
 
-          {!spotifyConnected && (
+          {currentSong?.previewUrl ? (
+            <div className="audio-controls">
+              {audioRef && (
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => {
+                    if (audioRef.paused) {
+                      audioRef.play().catch(console.error);
+                    } else {
+                      audioRef.pause();
+                    }
+                  }}
+                >
+                  {audioRef.paused ? '▶️ Play' : '⏸️ Pause'}
+                </button>
+              )}
+            </div>
+          ) : (
             <div className="no-spotify-warning">
-              <p>⚠️ Connect Spotify to hear the music!</p>
+              <p>⚠️ No audio preview available for this track</p>
             </div>
           )}
 

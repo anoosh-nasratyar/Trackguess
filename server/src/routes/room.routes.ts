@@ -55,16 +55,23 @@ router.post('/create', async (req, res) => {
 
     await room.save();
 
-    // Add host as first player
-    const hostPlayer = new RoomPlayer({
-      roomId,
-      discordId: hostId,
-      discordUsername: discordUsername || 'Host',
-      discordAvatar,
-      spotifyConnected: true,
-    });
+    // Get host username from User model if available
+    const hostUser = await User.findOne({ discordId: hostId });
+    const hostUsername = discordUsername || hostUser?.discordUsername || 'Host';
 
-    await hostPlayer.save();
+    // Add host as first player
+    const hostPlayer = await RoomPlayer.findOneAndUpdate(
+      { roomId, discordId: hostId },
+      {
+        roomId,
+        discordId: hostId,
+        discordUsername: hostUsername,
+        discordAvatar,
+        spotifyConnected: true,
+        lastActivity: new Date(),
+      },
+      { upsert: true, new: true }
+    );
 
     return res.json({
       success: true,
@@ -119,20 +126,24 @@ router.post('/join', async (req, res) => {
       return res.status(400).json({ error: 'Room is full' });
     }
 
-    // Check if user has Spotify connected
+    // Check if user has Spotify connected and get username
     const user = await User.findOne({ discordId });
     const spotifyConnected = user?.spotifyConnected || false;
+    const finalUsername = discordUsername || user?.discordUsername || 'Player';
 
-    // Add player
-    const player = new RoomPlayer({
-      roomId,
-      discordId,
-      discordUsername: discordUsername || 'Player',
-      discordAvatar,
-      spotifyConnected,
-    });
-
-    await player.save();
+    // Add or update player
+    const player = await RoomPlayer.findOneAndUpdate(
+      { roomId, discordId },
+      {
+        roomId,
+        discordId,
+        discordUsername: finalUsername,
+        discordAvatar,
+        spotifyConnected,
+        lastActivity: new Date(),
+      },
+      { upsert: true, new: true }
+    );
 
     return res.json({ success: true });
   } catch (error: any) {
@@ -169,6 +180,13 @@ router.get('/:roomId', async (req, res) => {
         status: room.status,
         songSource: room.songSource,
       },
+      songData: room.currentSongData ? {
+        trackId: room.currentSongData.trackId,
+        albumArt: room.currentSongData.albumArt,
+        duration: room.currentSongData.duration,
+        previewUrl: room.currentSongData.previewUrl,
+        startTime: room.currentSongData.startTime,
+      } : null,
       players: players.map((p) => ({
         discordId: p.discordId,
         username: p.discordUsername,
@@ -391,6 +409,13 @@ router.post('/start', async (req, res) => {
         totalRounds: updatedRoom?.totalRounds,
         roundDuration: updatedRoom?.roundDuration,
       },
+      songData: updatedRoom?.currentSongData ? {
+        trackId: updatedRoom.currentSongData.trackId,
+        albumArt: updatedRoom.currentSongData.albumArt,
+        duration: updatedRoom.currentSongData.duration,
+        previewUrl: updatedRoom.currentSongData.previewUrl,
+        startTime: updatedRoom.currentSongData.startTime,
+      } : null,
       players: players.map((p) => ({
         discordId: p.discordId,
         username: p.discordUsername,

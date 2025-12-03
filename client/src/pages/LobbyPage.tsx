@@ -101,6 +101,18 @@ function LobbyPage() {
         // Update room status and players
         setPlayers(response.data.players || []);
         
+        // Update round and song data
+        const setCurrentRound = useGameStore.getState().setCurrentRound;
+        const setCurrentSong = useGameStore.getState().setCurrentSong;
+        
+        if (response.data.room.currentRound) {
+          setCurrentRound(response.data.room.currentRound);
+        }
+        
+        if (response.data.songData) {
+          setCurrentSong(response.data.songData);
+        }
+        
         // Navigate to game page
         const setGameState = useGameStore.getState().setGameState;
         setGameState('playing');
