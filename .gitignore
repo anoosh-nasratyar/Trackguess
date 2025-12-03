@@ -37,3 +37,7 @@ coverage/
 .cache/
 temp/
 
+# Tunneling tools
+cloudflared*
+tunnel.js
+
