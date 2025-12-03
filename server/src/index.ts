@@ -10,8 +10,18 @@ import authRoutes from './routes/auth.routes';
 import roomRoutes from './routes/room.routes';
 import { setupSocketHandlers } from './sockets/socket.handlers';
 
-// Load .env from server directory
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// Load .env from server directory (works with tsx watch from project root)
+const envPath = path.join(process.cwd(), 'server', '.env');
+console.log('📁 Looking for .env at:', envPath);
+dotenv.config({ path: envPath });
+
+// Debug: Log environment variables (remove in production!)
+console.log('🔍 Environment check:');
+console.log('- SPOTIFY_CLIENT_ID:', process.env.SPOTIFY_CLIENT_ID ? '✓ Set' : '✗ Missing');
+console.log('- SPOTIFY_CLIENT_SECRET:', process.env.SPOTIFY_CLIENT_SECRET ? '✓ Set' : '✗ Missing');
+console.log('- SPOTIFY_REDIRECT_URI:', process.env.SPOTIFY_REDIRECT_URI || '✗ Missing');
+console.log('- DISCORD_CLIENT_ID:', process.env.DISCORD_CLIENT_ID ? '✓ Set' : '✗ Missing');
+console.log('- MONGODB_URI:', process.env.MONGODB_URI ? '✓ Set' : '✗ Missing');
 
 const app = express();
 const httpServer = createServer(app);
