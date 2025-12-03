@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { getDiscordSDK } from '../hooks/useDiscordSDK';
+import { useDiscordSDK } from '../hooks/useDiscordSDK';
 import axios from 'axios';
 import './HomePage.css';
 
@@ -19,16 +19,19 @@ function HomePage() {
   const spotifyConnected = useGameStore((state) => state.spotifyConnected);
   const setSpotifyConnected = useGameStore((state) => state.setSpotifyConnected);
 
-  const sdk = getDiscordSDK();
+  const { auth, sdk } = useDiscordSDK();
 
   const handleConnectSpotify = async () => {
     try {
-      const discordUser = await (sdk?.commands as any)?.getUser();
-      
-      const response = await axios.post('/api/auth/spotify/init', {
-        discordId: discordUser?.id,
-        discordUsername: discordUser?.username,
-        discordAvatar: discordUser?.avatar,
+      if (!auth?.id) {
+        setError('Discord user not authenticated');
+        return;
+      }
+
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/spotify/init`, {
+        discordId: auth.id,
+        discordUsername: auth.username || 'User',
+        discordAvatar: null,
       });
 
       // Open Spotify OAuth in popup
@@ -36,7 +39,7 @@ function HomePage() {
 
       // Poll for connection status
       const checkInterval = setInterval(async () => {
-        const statusResponse = await axios.get(`/api/auth/spotify/status/${discordUser?.id}`);
+        const statusResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/spotify/status/${auth.id}`);
         if (statusResponse.data.connected) {
           setSpotifyConnected(true);
           clearInterval(checkInterval);
@@ -62,19 +65,33 @@ function HomePage() {
       return;
     }
 
+    if (!auth?.id) {
+      setError('Discord user not authenticated');
+      return;
+    }
+
     setIsCreating(true);
     setError(null);
 
     try {
-      const discordUser = await (sdk?.commands as any)?.getUser();
-      const instanceInfo = await (sdk?.commands as any)?.getInstanceConnectedParticipants();
+      // Try to get channel/guild info from SDK
+      let channelId = null;
+      let guildId = null;
+      
+      try {
+        const instanceInfo = await (sdk?.commands as any)?.getInstanceConnectedParticipants();
+        channelId = instanceInfo?.channelId || null;
+        guildId = instanceInfo?.guildId || null;
+      } catch (e) {
+        console.warn('Could not get instance info:', e);
+      }
 
-      const response = await axios.post('/api/rooms/create', {
-        hostId: discordUser?.id,
-        discordUsername: discordUser?.username,
-        discordAvatar: discordUser?.avatar,
-        voiceChannelId: (instanceInfo as any)?.channelId,
-        guildId: (instanceInfo as any)?.guildId,
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/rooms/create`, {
+        hostId: auth.id,
+        discordUsername: auth.username || 'User',
+        discordAvatar: null,
+        voiceChannelId: channelId,
+        guildId: guildId,
         totalRounds,
         roundDuration,
         songSource,

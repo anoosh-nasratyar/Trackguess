@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { getSocket } from '../hooks/useSocketIO';
-import { getDiscordSDK } from '../hooks/useDiscordSDK';
+import { useDiscordSDK } from '../hooks/useDiscordSDK';
 import { useSpotify } from '../hooks/useSpotify';
 import './GamePage.css';
 
@@ -22,7 +22,7 @@ function GamePage() {
   const setGuessedTitle = useGameStore((state) => state.setGuessedTitle);
 
   const socket = getSocket();
-  const sdk = getDiscordSDK();
+  const { auth } = useDiscordSDK();
 
   // Initialize Spotify player (if connected)
   const spotifyAccessToken = null; // TODO: Get from auth
@@ -73,16 +73,14 @@ function GamePage() {
     };
   }, [socket]);
 
-  const handleSubmitGuess = async (e: React.FormEvent) => {
+  const handleSubmitGuess = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!guess.trim()) return;
-
-    const discordUser = await (sdk?.commands as any)?.getUser();
+    if (!guess.trim() || !auth?.id) return;
 
     socket?.emit('game:guess', {
       roomId,
-      discordId: discordUser?.id,
+      discordId: auth.id,
       guess: guess.trim(),
     });
 

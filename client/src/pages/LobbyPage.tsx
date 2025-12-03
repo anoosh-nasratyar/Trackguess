@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { getSocket } from '../hooks/useSocketIO';
-import { getDiscordSDK } from '../hooks/useDiscordSDK';
+import { useDiscordSDK } from '../hooks/useDiscordSDK';
 import './LobbyPage.css';
 
 function LobbyPage() {
@@ -11,29 +11,25 @@ function LobbyPage() {
   const settings = useGameStore((state) => state.settings);
 
   const socket = getSocket();
-  const sdk = getDiscordSDK();
+  const { auth } = useDiscordSDK();
 
   useEffect(() => {
-    const joinRoom = async () => {
-      const discordUser = await (sdk?.commands as any)?.getUser();
-      
-      socket?.emit('room:join', {
-        roomId,
-        discordId: discordUser?.id,
-        username: discordUser?.username,
-        avatar: discordUser?.avatar,
-      });
-    };
+    if (!auth?.id) return;
 
-    joinRoom();
-  }, [roomId]);
+    socket?.emit('room:join', {
+      roomId,
+      discordId: auth.id,
+      username: auth.username || 'User',
+      avatar: null,
+    });
+  }, [roomId, auth]);
 
-  const handleStartGame = async () => {
-    const discordUser = await (sdk?.commands as any)?.getUser();
+  const handleStartGame = () => {
+    if (!auth?.id) return;
     
     socket?.emit('game:start', {
       roomId,
-      discordId: discordUser?.id,
+      discordId: auth.id,
     });
   };
 
