@@ -34,7 +34,15 @@ function LobbyPage() {
 
         // Fetch room data
         const response = await axios.get(`/api/rooms/${roomId}`);
-        setPlayers(response.data.players || []);
+        // Map API response to match expected format
+        const playersData = (response.data.players || []).map((p: any) => ({
+          discordId: p.discordId,
+          username: p.username || p.discordUsername,
+          avatar: p.avatar || p.discordAvatar,
+          score: p.score || 0,
+          spotifyConnected: p.spotifyConnected || false,
+        }));
+        setPlayers(playersData);
 
         // Also try Socket.IO (may not work due to CSP)
         socket?.emit('room:join', {
@@ -58,26 +66,43 @@ function LobbyPage() {
 
     fetchRoomData();
 
-    // Poll for player updates (since Socket.IO is blocked)
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await axios.get(`/api/rooms/${roomId}`);
-        setPlayers(response.data.players || []);
-      } catch (err) {
-        console.error('Failed to poll room data:', err);
-      }
-    }, 2000); // Poll every 2 seconds
+        // Poll for player updates (since Socket.IO is blocked)
+        const pollInterval = setInterval(async () => {
+          try {
+            const response = await axios.get(`/api/rooms/${roomId}`);
+            // Map API response to match expected format
+            const playersData = (response.data.players || []).map((p: any) => ({
+              discordId: p.discordId,
+              username: p.username || p.discordUsername,
+              avatar: p.avatar || p.discordAvatar,
+              score: p.score || 0,
+              spotifyConnected: p.spotifyConnected || false,
+            }));
+            setPlayers(playersData);
+          } catch (err) {
+            console.error('Failed to poll room data:', err);
+          }
+        }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(pollInterval);
   }, [roomId, auth, setPlayers, socket]);
 
-  const handleStartGame = () => {
-    if (!auth?.id) return;
+  const handleStartGame = async () => {
+    if (!auth?.id || !isHost) return;
     
-    socket?.emit('game:start', {
-      roomId,
-      discordId: auth.id,
-    });
+    try {
+      // Try Socket.IO first (may not work due to CSP)
+      socket?.emit('game:start', {
+        roomId,
+        discordId: auth.id,
+      });
+      
+      // Fallback: Start game via API if Socket.IO fails
+      // Note: This would require a new API endpoint for starting games
+      // For now, we'll rely on Socket.IO working or manual refresh
+    } catch (err) {
+      console.error('Failed to start game:', err);
+    }
   };
 
   return (
