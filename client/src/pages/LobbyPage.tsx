@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { getSocket } from '../hooks/useSocketIO';
 import { useDiscordSDK } from '../hooks/useDiscordSDK';
+import axios from 'axios';
 import './LobbyPage.css';
 
 function LobbyPage() {
@@ -9,20 +10,66 @@ function LobbyPage() {
   const isHost = useGameStore((state) => state.isHost);
   const players = useGameStore((state) => state.players);
   const settings = useGameStore((state) => state.settings);
+  const setPlayers = useGameStore((state) => state.setPlayers);
 
   const socket = getSocket();
   const { auth } = useDiscordSDK();
+  const [isJoining, setIsJoining] = useState(false);
 
+  // Fetch room data and join via API (Socket.IO is blocked by CSP)
   useEffect(() => {
-    if (!auth?.id) return;
+    if (!auth?.id || !roomId) return;
 
-    socket?.emit('room:join', {
-      roomId,
-      discordId: auth.id,
-      username: auth.username || 'User',
-      avatar: null,
-    });
-  }, [roomId, auth]);
+    const fetchRoomData = async () => {
+      try {
+        // Try to join via API first
+        setIsJoining(true);
+        await axios.post('/api/rooms/join', {
+          roomId,
+          discordId: auth.id,
+          discordUsername: auth.username || 'User',
+          discordAvatar: null,
+        });
+        setIsJoining(false);
+
+        // Fetch room data
+        const response = await axios.get(`/api/rooms/${roomId}`);
+        setPlayers(response.data.players || []);
+
+        // Also try Socket.IO (may not work due to CSP)
+        socket?.emit('room:join', {
+          roomId,
+          discordId: auth.id,
+          username: auth.username || 'User',
+          avatar: null,
+        });
+      } catch (err: any) {
+        console.error('Failed to join room:', err);
+        setIsJoining(false);
+        // Still try to fetch room data
+        try {
+          const response = await axios.get(`/api/rooms/${roomId}`);
+          setPlayers(response.data.players || []);
+        } catch (fetchErr) {
+          console.error('Failed to fetch room data:', fetchErr);
+        }
+      }
+    };
+
+    fetchRoomData();
+
+    // Poll for player updates (since Socket.IO is blocked)
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await axios.get(`/api/rooms/${roomId}`);
+        setPlayers(response.data.players || []);
+      } catch (err) {
+        console.error('Failed to poll room data:', err);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [roomId, auth, setPlayers, socket]);
 
   const handleStartGame = () => {
     if (!auth?.id) return;

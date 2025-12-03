@@ -6,8 +6,10 @@ import './HomePage.css';
 
 function HomePage() {
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [joinRoomCode, setJoinRoomCode] = useState('');
   const [totalRounds, setTotalRounds] = useState(5);
   const [roundDuration, setRoundDuration] = useState(30);
   const [songSource, setSongSource] = useState<'liked_songs' | 'playlist' | 'top_tracks'>('liked_songs');
@@ -122,6 +124,49 @@ function HomePage() {
     }
   };
 
+  const handleJoinRoom = async () => {
+    if (!joinRoomCode.trim()) {
+      setError('Please enter a room code');
+      return;
+    }
+
+    if (!auth?.id) {
+      setError('Discord user not authenticated');
+      return;
+    }
+
+    setIsJoining(true);
+    setError(null);
+
+    try {
+      // Join the room via API
+      await axios.post('/api/rooms/join', {
+        roomId: joinRoomCode.trim(),
+        discordId: auth.id,
+        discordUsername: auth.username || 'User',
+        discordAvatar: null,
+      });
+
+      // Fetch room data to get settings
+      const response = await axios.get(`/api/rooms/${joinRoomCode.trim()}`);
+      
+      setRoomId(response.data.room.roomId);
+      setIsHost(false); // Not the host
+      setSettings({
+        totalRounds: response.data.room.totalRounds,
+        roundDuration: response.data.room.roundDuration,
+        songSource: response.data.room.songSource,
+        songSourceId: response.data.room.songSourceId,
+      });
+      setGameState('lobby');
+    } catch (err: any) {
+      console.error('Join room error:', err);
+      setError(err.response?.data?.error || 'Failed to join room. Check the room code.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   return (
     <div className="container home-page">
       <div className="card home-card">
@@ -152,8 +197,33 @@ function HomePage() {
         </div>
 
         {spotifyConnected && (
-          <div className="create-room-section">
-            <h2>Create a Room</h2>
+          <>
+            <div className="join-room-section">
+              <h2>Join a Room</h2>
+              <div className="form-group">
+                <label>Room Code</label>
+                <input
+                  type="text"
+                  placeholder="Enter room code (e.g., 0207a2af5fd2)"
+                  value={joinRoomCode}
+                  onChange={(e) => setJoinRoomCode(e.target.value.toUpperCase())}
+                  maxLength={12}
+                  style={{ textTransform: 'uppercase' }}
+                />
+              </div>
+              <button
+                className="btn-secondary"
+                onClick={handleJoinRoom}
+                disabled={isJoining || !joinRoomCode.trim()}
+              >
+                {isJoining ? 'Joining...' : 'Join Room'}
+              </button>
+            </div>
+
+            <div className="divider">OR</div>
+
+            <div className="create-room-section">
+              <h2>Create a Room</h2>
 
             <div className="form-group">
               <label>Number of Rounds</label>
@@ -204,6 +274,7 @@ function HomePage() {
               {isCreating ? 'Creating...' : 'Create Room'}
             </button>
           </div>
+          </>
         )}
       </div>
     </div>
