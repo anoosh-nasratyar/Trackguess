@@ -1,14 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useDiscordSDK } from '../hooks/useDiscordSDK';
 import axios from 'axios';
 import './HomePage.css';
 
+interface ActiveRoom {
+  roomId: string;
+  status: string;
+  totalRounds: number;
+  currentRound: number;
+  roundDuration: number;
+  songSource: string;
+  isHost: boolean;
+  playerCount: number;
+  maxPlayers: number;
+  createdAt: string;
+}
+
 function HomePage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [isClosingRoom, setIsClosingRoom] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeRooms, setActiveRooms] = useState<ActiveRoom[]>([]);
   const [joinRoomCode, setJoinRoomCode] = useState('');
   const [totalRounds, setTotalRounds] = useState(5);
   const [roundDuration, setRoundDuration] = useState(30);
@@ -19,10 +35,96 @@ function HomePage() {
   const setRoomId = useGameStore((state) => state.setRoomId);
   const setIsHost = useGameStore((state) => state.setIsHost);
   const setSettings = useGameStore((state) => state.setSettings);
+  const setPlayers = useGameStore((state) => state.setPlayers);
   const spotifyConnected = useGameStore((state) => state.spotifyConnected);
   const setSpotifyConnected = useGameStore((state) => state.setSpotifyConnected);
 
   const { auth, sdk } = useDiscordSDK();
+
+  // Fetch active rooms on load
+  useEffect(() => {
+    if (!auth?.id) return;
+
+    const fetchActiveRooms = async () => {
+      try {
+        setIsLoadingRooms(true);
+        const response = await axios.get(`/api/rooms/user/${auth.id}/active`);
+        setActiveRooms(response.data.rooms || []);
+      } catch (err) {
+        console.error('Failed to fetch active rooms:', err);
+      } finally {
+        setIsLoadingRooms(false);
+      }
+    };
+
+    fetchActiveRooms();
+  }, [auth?.id]);
+
+  const handleReconnectRoom = async (roomId: string) => {
+    if (!auth?.id) return;
+
+    setIsJoining(true);
+    setError(null);
+
+    try {
+      const response = await axios.post('/api/rooms/reconnect', {
+        roomId,
+        discordId: auth.id,
+        discordUsername: auth.username || 'User',
+        discordAvatar: null,
+      });
+
+      setRoomId(response.data.room.roomId);
+      setIsHost(response.data.room.isHost);
+      setSettings({
+        totalRounds: response.data.room.totalRounds,
+        roundDuration: response.data.room.roundDuration,
+        songSource: response.data.room.songSource,
+        songSourceId: undefined,
+      });
+      
+      // Set players if available
+      if (response.data.players) {
+        setPlayers(response.data.players);
+      }
+
+      // Navigate based on room status
+      if (response.data.room.status === 'WAITING') {
+        setGameState('lobby');
+      } else if (response.data.room.status === 'PLAYING') {
+        setGameState('playing');
+      } else {
+        setGameState('lobby');
+      }
+    } catch (err: any) {
+      console.error('Reconnect room error:', err);
+      setError(err.response?.data?.error || 'Failed to reconnect to room');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleCloseRoom = async (roomId: string) => {
+    if (!auth?.id) return;
+
+    setIsClosingRoom(roomId);
+    setError(null);
+
+    try {
+      await axios.post('/api/rooms/close', {
+        roomId,
+        discordId: auth.id,
+      });
+
+      // Remove from active rooms list
+      setActiveRooms(activeRooms.filter((r) => r.roomId !== roomId));
+    } catch (err: any) {
+      console.error('Close room error:', err);
+      setError(err.response?.data?.error || 'Failed to close room');
+    } finally {
+      setIsClosingRoom(null);
+    }
+  };
 
   const handleConnectSpotify = async () => {
     if (isConnecting) return; // Prevent double clicks
@@ -116,9 +218,21 @@ function HomePage() {
         songSourceId: songSource === 'playlist' ? playlistId : undefined,
       });
       setGameState('lobby');
+      
+      // Refresh active rooms list
+      if (auth?.id) {
+        const roomsResponse = await axios.get(`/api/rooms/user/${auth.id}/active`);
+        setActiveRooms(roomsResponse.data.rooms || []);
+      }
     } catch (err: any) {
       console.error('Create room error:', err);
-      setError(err.response?.data?.error || 'Failed to create room');
+      const errorMsg = err.response?.data?.error || 'Failed to create room';
+      setError(errorMsg);
+      
+      // If room already exists, offer to reconnect
+      if (err.response?.data?.roomId) {
+        setError(`${errorMsg}. Click "Reconnect" below to join your existing room.`);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -159,6 +273,16 @@ function HomePage() {
         songSourceId: response.data.room.songSourceId,
       });
       setGameState('lobby');
+      
+      // Refresh active rooms list
+      if (auth?.id) {
+        try {
+          const roomsResponse = await axios.get(`/api/rooms/user/${auth.id}/active`);
+          setActiveRooms(roomsResponse.data.rooms || []);
+        } catch (err) {
+          console.error('Failed to refresh rooms:', err);
+        }
+      }
     } catch (err: any) {
       console.error('Join room error:', err);
       setError(err.response?.data?.error || 'Failed to join room. Check the room code.');
@@ -176,6 +300,59 @@ function HomePage() {
         {error && (
           <div className="error">
             <p>{error}</p>
+          </div>
+        )}
+
+        {/* Active Rooms Section */}
+        {auth?.id && (
+          <div className="active-rooms-section">
+            <h2>Your Active Rooms</h2>
+            {isLoadingRooms ? (
+              <p>Loading rooms...</p>
+            ) : activeRooms.length > 0 ? (
+              <div className="rooms-list">
+                {activeRooms.map((room) => (
+                  <div key={room.roomId} className="room-card">
+                    <div className="room-info">
+                      <div className="room-header">
+                        <span className="room-code-badge">{room.roomId}</span>
+                        {room.isHost && <span className="host-badge">Host</span>}
+                        <span className={`status-badge ${room.status.toLowerCase()}`}>
+                          {room.status}
+                        </span>
+                      </div>
+                      <div className="room-details">
+                        <span>Round {room.currentRound}/{room.totalRounds}</span>
+                        <span>•</span>
+                        <span>{room.playerCount}/{room.maxPlayers} players</span>
+                        <span>•</span>
+                        <span>{room.roundDuration}s per round</span>
+                      </div>
+                    </div>
+                    <div className="room-actions">
+                      <button
+                        className="btn-primary btn-sm"
+                        onClick={() => handleReconnectRoom(room.roomId)}
+                        disabled={isJoining}
+                      >
+                        {isJoining ? 'Joining...' : 'Reconnect'}
+                      </button>
+                      {room.isHost && (
+                        <button
+                          className="btn-secondary btn-sm"
+                          onClick={() => handleCloseRoom(room.roomId)}
+                          disabled={isClosingRoom === room.roomId}
+                        >
+                          {isClosingRoom === room.roomId ? 'Closing...' : 'Close'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="no-rooms">No active rooms</p>
+            )}
           </div>
         )}
 
