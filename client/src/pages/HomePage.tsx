@@ -6,6 +6,7 @@ import './HomePage.css';
 
 function HomePage() {
   const [isCreating, setIsCreating] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalRounds, setTotalRounds] = useState(5);
   const [roundDuration, setRoundDuration] = useState(30);
@@ -22,7 +23,12 @@ function HomePage() {
   const { auth, sdk } = useDiscordSDK();
 
   const handleConnectSpotify = async () => {
+    if (isConnecting) return; // Prevent double clicks
+    
     try {
+      setIsConnecting(true);
+      setError(null);
+      
       if (!auth?.id) {
         setError('Discord user not authenticated');
         return;
@@ -53,6 +59,8 @@ function HomePage() {
     } catch (err: any) {
       console.error('Spotify connection error:', err);
       setError('Failed to connect Spotify');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -136,8 +144,12 @@ function HomePage() {
               <span>Spotify Connected</span>
             </div>
           ) : (
-            <button className="btn-primary" onClick={handleConnectSpotify}>
-              Connect Spotify
+            <button 
+              className="btn-primary" 
+              onClick={handleConnectSpotify}
+              disabled={isConnecting}
+            >
+              {isConnecting ? 'Opening Spotify...' : 'Connect Spotify'}
             </button>
           )}
         </div>

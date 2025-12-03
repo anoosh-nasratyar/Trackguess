@@ -3,14 +3,16 @@ import { User } from '../models/User.model';
 import crypto from 'crypto';
 
 export class SpotifyService {
-  private clientId: string;
-  private _clientSecret: string;
-  private redirectUri: string;
+  private get clientId(): string {
+    return process.env.SPOTIFY_CLIENT_ID || '';
+  }
 
-  constructor() {
-    this.clientId = process.env.SPOTIFY_CLIENT_ID || '';
-    this._clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '';
-    this.redirectUri = process.env.SPOTIFY_REDIRECT_URI || '';
+  private get clientSecret(): string {
+    return process.env.SPOTIFY_CLIENT_SECRET || '';
+  }
+
+  private get redirectUri(): string {
+    return process.env.SPOTIFY_REDIRECT_URI || '';
   }
 
   /**
