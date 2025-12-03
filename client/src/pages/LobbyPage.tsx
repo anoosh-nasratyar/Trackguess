@@ -88,20 +88,26 @@ function LobbyPage() {
   }, [roomId, auth, setPlayers, socket]);
 
   const handleStartGame = async () => {
-    if (!auth?.id || !isHost) return;
+    if (!auth?.id || !isHost || !roomId) return;
     
     try {
-      // Try Socket.IO first (may not work due to CSP)
-      socket?.emit('game:start', {
+      // Use API endpoint (Socket.IO may be blocked by CSP)
+      const response = await axios.post('/api/rooms/start', {
         roomId,
         discordId: auth.id,
       });
-      
-      // Fallback: Start game via API if Socket.IO fails
-      // Note: This would require a new API endpoint for starting games
-      // For now, we'll rely on Socket.IO working or manual refresh
-    } catch (err) {
+
+      if (response.data.success) {
+        // Update room status and players
+        setPlayers(response.data.players || []);
+        
+        // Navigate to game page
+        const setGameState = useGameStore.getState().setGameState;
+        setGameState('playing');
+      }
+    } catch (err: any) {
       console.error('Failed to start game:', err);
+      alert(err.response?.data?.error || 'Failed to start game');
     }
   };
 
@@ -158,9 +164,9 @@ function LobbyPage() {
           <button
             className="btn-primary start-btn"
             onClick={handleStartGame}
-            disabled={players.length < 2}
+            disabled={players.length < 1}
           >
-            Start Game
+            Start Game {players.length === 1 && '(Solo)'}
           </button>
         )}
 

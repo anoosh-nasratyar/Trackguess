@@ -222,6 +222,7 @@ router.get('/spotify/status/:discordId', async (req, res) => {
       connected: true,
       hasValidToken: true,
       expiresAt: expiresAt.toISOString(),
+      spotifyConnected: true, // Explicitly set for backward compatibility
     });
   } catch (error: any) {
     console.error('Spotify status error:', error);

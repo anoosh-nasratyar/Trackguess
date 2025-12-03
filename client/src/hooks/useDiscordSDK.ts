@@ -44,6 +44,7 @@ export function useDiscordSDK() {
   const [error, setError] = useState<string | null>(null);
   const [auth, setAuth] = useState<any>(null);
   const setupRan = useRef(false); // Prevent double initialization in StrictMode
+  const authAttempted = useRef(false); // Prevent double auth attempts
 
   useEffect(() => {
     // Prevent double initialization in React StrictMode
@@ -69,23 +70,29 @@ export function useDiscordSDK() {
           guildId: (discordSdk as any).guildId,
         });
 
-        // Try to authorize (RPC commands work without OAuth in Activities)
-        // If authorization fails, we can still use the Activity
+        // For Discord Activities, we don't need OAuth - RPC commands work by default
+        // Only try to authorize if we haven't attempted it before and user explicitly needs it
+        // Skip OAuth for Activities to avoid unnecessary prompts
         let authCode = null;
-        try {
-          const authResult = await discordSdk.commands.authorize({
-            client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
-            response_type: 'code',
-            state: '',
-            prompt: 'none',
-            scope: ['identify', 'guilds'], // rpc.activities.read is not a valid OAuth scope
-          });
-          authCode = authResult.code;
-          console.log('✅ Discord authorization complete');
-        } catch (authErr: any) {
-          console.warn('⚠️ Discord authorization failed (this is OK for Activities):', authErr.message);
-          // Activities can work without OAuth - RPC commands are available by default
+        
+        // Check if we have a stored auth state
+        const storedAuth = localStorage.getItem('discord_auth_state');
+        if (storedAuth && !authAttempted.current) {
+          try {
+            const authData = JSON.parse(storedAuth);
+            // Check if auth is still valid (not expired)
+            if (authData.expiresAt && new Date(authData.expiresAt) > new Date()) {
+              authCode = authData.code;
+              console.log('✅ Using stored Discord auth');
+            }
+          } catch (e) {
+            // Invalid stored auth, ignore
+          }
         }
+        
+        // Don't call authorize for Activities - it's not needed and causes prompts
+        // RPC commands work without OAuth in Discord Activities
+        console.log('✅ Discord SDK ready (OAuth not required for Activities)');
 
         clearTimeout(timeout);
 

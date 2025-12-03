@@ -53,15 +53,26 @@ function HomePage() {
       try {
         setIsCheckingSpotify(true);
         const response = await axios.get(`/api/auth/spotify/status/${auth.id}`);
-        const isConnected = response.data.connected && response.data.hasValidToken;
+        console.log('Spotify status response:', response.data);
+        
+        // Check connection status - handle both old and new response formats
+        const isConnected = response.data.connected === true && 
+                           (response.data.hasValidToken === true || response.data.hasValidToken === undefined);
+        
         setSpotifyConnected(isConnected);
         
         // If token was refreshed, show a brief message
         if (response.data.refreshed) {
           console.log('✅ Spotify token refreshed automatically');
         }
-      } catch (err) {
+        
+        // If needs reconnect, log it
+        if (response.data.needsReconnect) {
+          console.log('⚠️ Spotify needs reconnection');
+        }
+      } catch (err: any) {
         console.error('Failed to check Spotify status:', err);
+        console.error('Error details:', err.response?.data);
         setSpotifyConnected(false);
       } finally {
         setIsCheckingSpotify(false);

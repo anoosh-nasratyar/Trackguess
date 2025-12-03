@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Room, RoomStatus } from '../models/Room.model';
 import { RoomPlayer } from '../models/RoomPlayer.model';
 import { User } from '../models/User.model';
+import { gameService } from '../services/game.service';
 import crypto from 'crypto';
 
 const router = Router();
@@ -340,6 +341,66 @@ router.post('/reconnect', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Reconnect room error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Start game (host only, allows solo play)
+ */
+router.post('/start', async (req, res) => {
+  try {
+    const { roomId, discordId } = req.body;
+
+    if (!roomId || !discordId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const room = await Room.findOne({ roomId });
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    if (room.hostId !== discordId) {
+      return res.status(403).json({ error: 'Only host can start the game' });
+    }
+
+    if (room.status !== RoomStatus.WAITING) {
+      return res.status(400).json({ error: 'Game already started' });
+    }
+
+    // Check if there's at least 1 player (allow solo play)
+    const playerCount = await RoomPlayer.countDocuments({ roomId });
+    if (playerCount < 1) {
+      return res.status(400).json({ error: 'No players in room' });
+    }
+
+    // Start first round
+    await gameService.startRound(roomId);
+
+    const updatedRoom = await Room.findOne({ roomId });
+    const players = await RoomPlayer.find({ roomId }).sort({ score: -1 });
+
+    return res.json({
+      success: true,
+      room: {
+        roomId: updatedRoom?.roomId,
+        status: updatedRoom?.status,
+        currentRound: updatedRoom?.currentRound || 1,
+        totalRounds: updatedRoom?.totalRounds,
+        roundDuration: updatedRoom?.roundDuration,
+      },
+      players: players.map((p) => ({
+        discordId: p.discordId,
+        username: p.discordUsername,
+        avatar: p.discordAvatar,
+        score: p.score,
+        spotifyConnected: p.spotifyConnected,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Start game error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
