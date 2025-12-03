@@ -28,7 +28,7 @@ function HomePage() {
         return;
       }
 
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/spotify/init`, {
+      const response = await axios.post('/api/auth/spotify/init', {
         discordId: auth.id,
         discordUsername: auth.username || 'User',
         discordAvatar: null,
@@ -39,7 +39,7 @@ function HomePage() {
 
       // Poll for connection status
       const checkInterval = setInterval(async () => {
-        const statusResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/spotify/status/${auth.id}`);
+        const statusResponse = await axios.get(`/api/auth/spotify/status/${auth.id}`);
         if (statusResponse.data.connected) {
           setSpotifyConnected(true);
           clearInterval(checkInterval);
@@ -86,7 +86,7 @@ function HomePage() {
         console.warn('Could not get instance info:', e);
       }
 
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/rooms/create`, {
+      const response = await axios.post('/api/rooms/create', {
         hostId: auth.id,
         discordUsername: auth.username || 'User',
         discordAvatar: null,

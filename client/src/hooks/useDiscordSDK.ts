@@ -74,13 +74,22 @@ export function useDiscordSDK() {
         });
 
         clearTimeout(timeout);
-        console.log('✅ Discord SDK authenticated');
+        console.log('✅ Discord SDK authenticated with code:', code);
 
-        // Mock authentication for now
+        // Authenticate to get user data
+        const authResponse = await discordSdk.commands.authenticate({
+          access_token: code,
+        });
+
+        console.log('✅ Got user data:', authResponse.user);
+        
+        // Set auth with real user data
         setAuth({
           code,
-          id: 'user-id',
-          username: 'Discord User',
+          id: authResponse.user.id,
+          username: authResponse.user.username,
+          avatar: authResponse.user.avatar,
+          discriminator: authResponse.user.discriminator,
         });
         
         setIsReady(true);

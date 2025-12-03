@@ -26,7 +26,9 @@ export function useSocketIO() {
       // In production, you'll need to use Discord's proxy or alternative real-time solution
       console.log('🔌 Attempting to connect to Socket.IO...');
       
-      socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3000', {
+      // Use relative path so it goes through Vite proxy to backend
+      socket = io('/', {
+        path: '/socket.io',
         transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
         reconnection: true,
         reconnectionDelay: 1000,
