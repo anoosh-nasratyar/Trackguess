@@ -69,13 +69,13 @@ export function useDiscordSDK() {
           guildId: (discordSdk as any).guildId,
         });
 
-        // Authorize to get OAuth code (don't use prompt: 'none' in Activity)
+        // Authorize to get OAuth code (need rpc.activities.read for getActivityInstanceConnectedParticipants)
         const authResult = await discordSdk.commands.authorize({
           client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
           response_type: 'code',
           state: '',
           prompt: 'none',
-          scope: ['identify', 'guilds'],
+          scope: ['identify', 'guilds', 'rpc.activities.read'],
         });
 
         clearTimeout(timeout);
