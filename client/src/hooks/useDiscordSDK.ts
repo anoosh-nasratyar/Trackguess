@@ -1,34 +1,70 @@
-import { useState, useEffect } from 'react';
-import { DiscordSDK } from '@discord/embedded-app-sdk';
+import { useState, useEffect, useRef } from 'react';
+import { DiscordSDK, DiscordSDKMock } from '@discord/embedded-app-sdk';
 
-let discordSdk: DiscordSDK | null = null;
+const queryParams = new URLSearchParams(window.location.search);
+const isEmbedded = queryParams.get('frame_id') != null;
+
+let discordSdk: DiscordSDK | DiscordSDKMock;
+
+if (isEmbedded) {
+  discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
+} else {
+  // Use mock for local development
+  const mockUserId = queryParams.get('user_id') ?? undefined;
+  const mockGuildId = queryParams.get('guild_id') ?? null;
+  const mockChannelId = queryParams.get('channel_id') ?? null;
+  const mockLocationId = queryParams.get('location_id') ?? null;
+  discordSdk = new DiscordSDKMock(import.meta.env.VITE_DISCORD_CLIENT_ID, mockGuildId, mockChannelId, mockLocationId);
+  const discriminator = String(mockUserId ?? Math.round(Math.random() * 9999));
+  discordSdk._updateCommandMocks({
+    authenticate: async () => ({
+      access_token: 'mock_token',
+      user: {
+        username: 'Mock User',
+        discriminator,
+        id: mockUserId ?? discriminator,
+        avatar: null,
+        public_flags: 1,
+      },
+      scopes: [],
+      expires: new Date(2121, 1, 1).toString(),
+      application: {
+        id: import.meta.env.VITE_DISCORD_CLIENT_ID,
+        description: 'Mock App',
+        name: 'Mock App',
+        icon: null,
+        rpc_origins: undefined,
+      },
+    }),
+  });
+}
 
 export function useDiscordSDK() {
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [auth, setAuth] = useState<any>(null);
+  const setupRan = useRef(false); // Prevent double initialization in StrictMode
 
   useEffect(() => {
-    const initDiscordSDK = async () => {
-      try {
-        // Development fallback
-        if (import.meta.env.DEV && !(window as any).DiscordSDK) {
-          setAuth({
-            id: 'dev-user',
-            username: 'Dev Tester',
-            guildId: 'dev-guild',
-            channelId: 'dev-channel',
-          });
-          setIsReady(true);
-          return;
-        }
+    // Prevent double initialization in React StrictMode
+    if (setupRan.current) return;
+    setupRan.current = true;
 
-        // Initialize Discord SDK
-        discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
+    const setupDiscordSdk = async () => {
+      try {
+        console.log('🚀 Initializing Discord SDK...');
+        
+        // Add timeout to prevent infinite loading
+        const timeout = setTimeout(() => {
+          console.warn('⚠️ Discord SDK timeout, loading UI anyway');
+          setAuth({ id: 'timeout-user', username: 'Loading User' });
+          setIsReady(true);
+        }, 3000); // 3 second timeout
 
         await discordSdk.ready();
+        console.log('✅ Discord SDK ready');
 
-        // Authenticate
+        // Authenticate with Discord
         const { code } = await discordSdk.commands.authorize({
           client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
           response_type: 'code',
@@ -37,21 +73,25 @@ export function useDiscordSDK() {
           scope: ['identify', 'guilds'],
         });
 
-        // For now, use mock auth
+        clearTimeout(timeout);
+        console.log('✅ Discord SDK authenticated');
+
+        // Mock authentication for now
         setAuth({
-          id: code || 'discord-user',
-          username: 'Discord User',
           code,
+          id: 'user-id',
+          username: 'Discord User',
         });
+        
         setIsReady(true);
       } catch (err: any) {
-        console.error('Discord SDK initialization error:', err);
+        console.error('❌ Discord SDK initialization error:', err);
         setError(err.message || 'Failed to initialize Discord SDK');
-        setIsReady(true); // Allow UI to load even with error
+        setIsReady(true); // Still allow UI to load
       }
     };
 
-    initDiscordSDK();
+    setupDiscordSdk();
   }, []);
 
   return {

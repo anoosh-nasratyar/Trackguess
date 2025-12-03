@@ -5,17 +5,18 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true, // Important for ngrok
-    allowedHosts: ['3774c061c141.ngrok-free.app'],
+    host: 'localhost',
+    strictPort: true,
     hmr: {
-      protocol: 'wss',
-      host: '3774c061c141.ngrok-free.app',
-      port: 443,
+      clientPort: 443,
+      host: 'resume-korea-arnold-relative.trycloudflare.com',
     },
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        secure: false,
+        ws: true,
       },
     },
   },
@@ -23,4 +24,5 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
+  envPrefix: ['VITE_'],
 });
